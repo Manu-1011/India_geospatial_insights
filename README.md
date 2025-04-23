@@ -64,7 +64,7 @@ map_plus/                  # Django project root
 
 Clone the repository
 
-git clone https://github.com/<your-username>/geographic-data-visualizer.git
+git clone https://github.com/Manu-1101/geographic-data-visualizer.git
 cd geographic-data-visualizer
 
 Create & activate a virtual environment

@@ -1,0 +1,453 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Interactive India Map</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+  <style>
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0;
+      height: 100%;
+      font-family: Arial, sans-serif;
+    }
+    #container {
+      display: flex;
+      height: 100vh;
+      width: 100%;
+      overflow: hidden;
+    }
+    .sidebar {
+      width: 250px;
+      background-color: #1e1e1e;
+      color: white;
+      padding: 20px;
+    }
+    .sidebar h2 { margin-top: 0; }
+
+    .filter-group {
+      margin-bottom: 20px;
+    }
+
+    select {
+      width: 100%;
+      padding: 8px;
+      font-size: 14px;
+    }
+
+    #map {
+      flex: 1;
+      height: 100%;
+      z-index: 1;
+    }
+
+    .info-panel {
+      width: 300px;
+      background: #f5f5f5;
+      color: #000;
+      padding: 20px;
+      position: absolute;
+      right: -320px;
+      top: 0;
+      height: 100%;
+      transition: right 0.3s ease-in-out;
+      box-shadow: -2px 0 8px rgba(0, 0, 0, 0.3);
+      z-index: 1001;
+      overflow-y: auto;
+    }
+
+    .info-panel.active {
+      right: 0;
+    }
+
+    .toggle-btn {
+      position: absolute;
+      top: 20px;
+      right: 10px;
+      background: #333;
+      color: #fff;
+      padding: 8px 12px;
+      cursor: pointer;
+      border-radius: 4px;
+      z-index: 1100;
+    }
+
+    #legend {
+      margin: 10px 0;
+    }
+
+    canvas {
+      margin-top: 10px;
+      max-width: 100%;
+    }
+
+    .map-layers {
+      margin-bottom: 20px;
+    }
+
+    .chart-container {
+      margin-top: 20px;
+    }
+  </style>
+</head>
+<body>
+
+<div id="container">
+  <!-- Left: Filters Sidebar -->
+  <div class="sidebar">
+    <h2>🗺️ Filters</h2>
+
+    <div class="filter-group">
+      <label for="stateSelector">State</label>
+      <select id="stateSelector">
+        <option value="">-- Select State --</option>
+      </select>
+    </div>
+
+    <div class="filter-group">
+      <label for="districtSelector">District</label>
+      <select id="districtSelector" disabled>
+        <option value="">-- Select District --</option>
+      </select>
+    </div>
+
+    <div class="filter-group">
+      <label for="talukSelector">Taluk</label>
+      <select id="talukSelector" disabled>
+        <option value="">-- Select Taluk --</option>
+      </select>
+    </div>
+
+    <div class="filter-group map-layers">
+      <label for="mapLayerSelector">Map Layers</label>
+      <select id="mapLayerSelector">
+        <option value="openstreetmap">OpenStreetMap</option>
+        <option value="satellite">Satellite</option>
+        <option value="terrain">Terrain</option>
+      </select>
+    </div>
+  </div>
+
+  <!-- Center: Map -->
+  <div id="map"></div>
+
+  <!-- Right: Slide-In Info Panel -->
+  <div class="info-panel" id="infoPanel">
+    <h3>📄 Region Info</h3>
+    <div id="infoContent">Select a taluk for detailed info.</div>
+
+    <div class="filter-group">
+      <label for="colorMetric"><strong>Color By:</strong></label>
+      <select id="colorMetric" multiple>
+        <option value="population">Population</option>
+        <option value="literacy_rate">Literacy Rate</option>
+        <option value="health_centers">Health Centers</option>
+        <option value="schools">Schools</option>
+      </select>
+    </div>
+
+    <div class="filter-group">
+      <label for="gradientSelector"><strong>Gradient:</strong></label>
+      <select id="gradientSelector">
+        <option value="green-yellow-red">Green → Yellow → Red</option>
+        <option value="blue-purple-pink">Blue → Purple → Pink</option>
+        <option value="gray">Gray Scale</option>
+      </select>
+    </div>
+
+    <div id="legend"></div>
+    <div id="charts"></div>
+  </div>
+</div>
+
+<!-- Toggle Button -->
+<div class="toggle-btn" id="toggleInfoBtn">ℹ️</div>
+
+<!-- Scripts -->
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/chroma-js/2.1.0/chroma.min.js"></script>
+
+<script>
+  const map = L.map('map').setView([22.9734, 78.6569], 5);
+
+  let currentLayer = 'openstreetmap';
+  const openStreetMapLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '&copy; OpenStreetMap contributors'
+  });
+
+  const satelliteLayer = L.tileLayer('https://{s}.satellite.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '&copy; OpenStreetMap contributors'
+  });
+
+  const terrainLayer = L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {
+    attribution: '© OpenStreetMap contributors, SRTM | Tiles by OpenTopoMap'
+  });
+
+  openStreetMapLayer.addTo(map);
+
+  const baseMaps = {
+    "OpenStreetMap": openStreetMapLayer,
+    "Satellite": satelliteLayer,
+    "Terrain": terrainLayer
+  };
+
+  const mapLayerSelector = document.getElementById('mapLayerSelector');
+  mapLayerSelector.addEventListener('change', (e) => {
+    const selectedLayer = e.target.value;
+    if (selectedLayer !== currentLayer) {
+      map.removeLayer(baseMaps[currentLayer]);
+      baseMaps[selectedLayer].addTo(map);
+      currentLayer = selectedLayer;
+    }
+  });
+
+  const stateSelector = document.getElementById('stateSelector');
+  const districtSelector = document.getElementById('districtSelector');
+  const talukSelector = document.getElementById('talukSelector');
+  const infoPanel = document.getElementById('infoPanel');
+  const infoContent = document.getElementById('infoContent');
+  const toggleInfoBtn = document.getElementById('toggleInfoBtn');
+  const colorMetricSel = document.getElementById('colorMetric');
+  const gradientSelector = document.getElementById('gradientSelector');
+  const legendDiv = document.getElementById('legend');
+  const chartsDiv = document.getElementById('charts');
+
+  let fullGeoJSON = null;
+  let stateLayer, districtLayer, talukLayer;
+  let chartInstances = [];
+  let currentDistrictFeatures = [];
+
+  fetch('/api/geojson/?level=state')
+    .then(r => r.json())
+    .then(data => {
+      fullGeoJSON = data.features;
+      populateStates();
+    });
+
+  function populateStates() {
+    const states = Array.from(new Set(fullGeoJSON.map(f => f.properties.NAME_1))).sort();
+    states.forEach(s => {
+      const o = document.createElement('option');
+      o.value = s;
+      o.textContent = s;
+      stateSelector.append(o);
+    });
+  }
+
+  stateSelector.addEventListener('change', () => {
+    clearAll();
+    const st = stateSelector.value;
+    districtSelector.innerHTML = '<option value="">-- Select District --</option>';
+    talukSelector.innerHTML = '<option value="">-- Select Taluk --</option>';
+    districtSelector.disabled = !st;
+    talukSelector.disabled = true;
+    if (!st) return;
+
+    fetch(`/api/geojson/?level=state&state=${encodeURIComponent(st)}`)
+      .then(r => r.json())
+      .then(data => {
+        const feats = data.features;
+        stateLayer = L.geoJSON(feats, {
+          style: { color: '#FFB74D', weight: 2, fillOpacity: 0.2 }
+        }).addTo(map);
+        map.fitBounds(stateLayer.getBounds());
+
+        const dists = Array.from(new Set(feats.map(f => f.properties.NAME_2))).sort();
+        dists.forEach(d => {
+          const o = document.createElement('option');
+          o.value = d;
+          o.textContent = d;
+          districtSelector.append(o);
+        });
+      });
+  });
+
+  districtSelector.addEventListener('change', () => {
+    if (districtLayer) map.removeLayer(districtLayer);
+    if (talukLayer) map.removeLayer(talukLayer);
+    const st = stateSelector.value;
+    const dt = districtSelector.value;
+    talukSelector.innerHTML = '<option value="">-- Select Taluk --</option>';
+    talukSelector.disabled = !dt;
+    if (!dt) return;
+
+    fetch(`/api/geojson/?level=district&state=${encodeURIComponent(st)}&district=${encodeURIComponent(dt)}`)
+      .then(r => r.json())
+      .then(data => {
+        currentDistrictFeatures = data.features;
+        districtLayer = L.geoJSON(currentDistrictFeatures, {
+          style: { color: '#81C784', weight: 2, fillOpacity: 0.2 }
+        }).addTo(map);
+        map.fitBounds(districtLayer.getBounds());
+
+        const tals = Array.from(new Set(currentDistrictFeatures.map(f => f.properties.NAME_3))).sort();
+        tals.forEach(t => {
+          const o = document.createElement('option');
+          o.value = t;
+          o.textContent = t;
+          talukSelector.append(o);
+        });
+
+        applyGradient(currentDistrictFeatures, colorMetricSel.value);
+        renderDistrictCharts(currentDistrictFeatures);
+      });
+  });
+
+  talukSelector.addEventListener('change', () => {
+    if (talukLayer) map.removeLayer(talukLayer);
+    const st = stateSelector.value;
+    const dt = districtSelector.value;
+    const tl = talukSelector.value;
+    if (!tl) return;
+
+    const feats = fullGeoJSON.filter(f =>
+      f.properties.NAME_1 === st &&
+      f.properties.NAME_2 === dt &&
+      f.properties.NAME_3 === tl
+    );
+    talukLayer = L.geoJSON(feats, {
+      style: { color: '#64B5F6', weight: 2, fillOpacity: 0.4 }
+    }).addTo(map);
+    map.fitBounds(talukLayer.getBounds());
+
+    fetch(`/api/info/?state=${encodeURIComponent(st)}&district=${encodeURIComponent(dt)}&taluk=${encodeURIComponent(tl)}`)
+      .then(r => r.json())
+      .then(d => {
+        infoContent.innerHTML = `
+          <strong>State:</strong> ${d.state}<br>
+          <strong>District:</strong> ${d.district}<br>
+          <strong>Taluk:</strong> ${d.taluk}<br>
+          <strong>Population:</strong> ${d.population}<br>
+          <strong>Literacy Rate:</strong> ${d.literacy_rate}<br>
+          <strong>Health Centers:</strong> ${d.health_centers}<br>
+          <strong>Schools:</strong> ${d.schools}<br>
+          <strong>Famous For:</strong> ${d.famous_for}
+        `;
+        infoPanel.classList.add('active');
+      });
+  });
+
+  toggleInfoBtn.addEventListener('click', () => {
+    infoPanel.classList.toggle('active');
+  });
+
+  colorMetricSel.addEventListener('change', () => {
+    if (currentDistrictFeatures.length) {
+      applyGradient(currentDistrictFeatures, colorMetricSel.value);
+      renderDistrictCharts(currentDistrictFeatures);
+    }
+  });
+
+  gradientSelector.addEventListener('change', () => {
+    if (currentDistrictFeatures.length) {
+      applyGradient(currentDistrictFeatures, colorMetricSel.value);
+    }
+  });
+
+  function clearAll() {
+    [stateLayer, districtLayer, talukLayer].forEach(l => {
+      if (l) map.removeLayer(l);
+    });
+    stateLayer = districtLayer = talukLayer = null;
+    infoPanel.classList.remove('active');
+    chartInstances.forEach(chart => chart.destroy());
+    chartInstances = [];
+    chartsDiv.innerHTML = '';
+  }
+
+  function applyGradient(features, key) {
+    if (talukLayer) map.removeLayer(talukLayer);
+
+    const vals = features.map(f => +f.properties[key] || 0);
+    const min = Math.min(...vals), max = Math.max(...vals);
+
+    let scale;
+    const gradientType = gradientSelector.value;
+    if (gradientType === 'blue-purple-pink') {
+      scale = chroma.scale(['#2196F3', '#9C27B0', '#E91E63']).domain([min, max]);
+    } else if (gradientType === 'gray') {
+      scale = chroma.scale(['#ddd', '#111']).domain([min, max]);
+    } else {
+      scale = chroma.scale(['green', 'yellow', 'red']).domain([min, max]);
+    }
+
+    talukLayer = L.geoJSON({ type: 'FeatureCollection', features }, {
+      style: f => ({
+        fillColor: scale(f.properties[key] || 0).hex(),
+        color: '#333', weight: 1, fillOpacity: 0.7
+      }),
+      onEachFeature: function (feature, layer) {
+        const name = feature.properties.NAME_3 || 'Unknown';
+        const val = feature.properties[key] || 'N/A';
+        layer.bindTooltip(`${name}<br>${key}: ${val}`, { sticky: true });
+      }
+    }).addTo(map);
+
+    updateLegend(scale, min, max);
+  }
+
+  function updateLegend(scale, min, max) {
+    legendDiv.innerHTML = '';
+    const canvas = document.createElement('canvas');
+    canvas.width = 100;
+    canvas.height = 10;
+    const ctx = canvas.getContext('2d');
+    const grad = ctx.createLinearGradient(0, 0, 100, 0);
+
+    for (let i = 0; i <= 1; i += 0.01) {
+      grad.addColorStop(i, scale(min + i * (max - min)).hex());
+    }
+
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, 100, 10);
+    legendDiv.appendChild(canvas);
+
+    const label = document.createElement('div');
+    label.innerHTML = `<small>${min.toLocaleString()} ← → ${max.toLocaleString()}</small>`;
+    legendDiv.appendChild(label);
+  }
+
+  function renderDistrictCharts(features) {
+    const selectedMetrics = Array.from(colorMetricSel.selectedOptions).map(opt => opt.value);
+
+    chartsDiv.innerHTML = ''; // Clear previous charts
+    chartInstances = []; // Reset chart instances
+
+    selectedMetrics.forEach(metric => {
+      const chartContainer = document.createElement('div');
+      chartContainer.classList.add('chart-container');
+      const canvas = document.createElement('canvas');
+      chartContainer.appendChild(canvas);
+      chartsDiv.appendChild(chartContainer);
+
+      const labels = features.map(f => f.properties.NAME_3 || 'Unnamed');
+      const data = features.map(f => f.properties[metric] || 0);
+
+      const chartInstance = new Chart(canvas.getContext('2d'), {
+        type: 'bar',
+        data: {
+          labels: labels,
+          datasets: [{
+            label: `${metric} by Taluk`,
+            data: data,
+            backgroundColor: '#42a5f5'
+          }]
+        },
+        options: {
+          responsive: true,
+          plugins: {
+            title: { display: true, text: `Taluk-wise ${metric}` }
+          },
+          scales: {
+            y: { beginAtZero: true }
+          }
+        }
+      });
+
+      chartInstances.push(chartInstance);
+    });
+  }
+</script>
+</body>
+</html>

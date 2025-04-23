@@ -143,6 +143,6 @@ This project is licensed under the MIT License. See LICENSE for details.
 Name: K Manoj Kumar
 Role: Software Developer Intern @ Social Bytes
 Aspiration: DevOps Engineer
-Email: kamnojkumar161@gmail.com
+Email: kmanojkumar161@gmail.com
 GitHub: github.com/Manu-1011
 LinkedIn: linkedin.com/in/k-manoj-kumar11/

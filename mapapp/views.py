@@ -4,7 +4,7 @@ from django.conf import settings
 from django.shortcuts import render
 from django.http import JsonResponse
 from django.views.decorators.http import require_GET
-from .models import StateColor, RegionInfo
+from .models import  RegionInfo, Hospital, School
 
 def index(request):
     return render(request, 'index.html')
@@ -68,14 +68,6 @@ def get_filtered_geojson(request):
     })
 
 
-@require_GET
-def get_colored_states(request):
-    data = {
-        item.state_name.strip(): item.color_code
-        for item in StateColor.objects.all()
-    }
-    return JsonResponse(data)
-
 
 @require_GET
 def get_region_info(request):
@@ -102,3 +94,46 @@ def get_region_info(request):
             "taluk": taluk,
             "info": "No data found in database."
         })
+
+
+@require_GET
+def get_schools(request):
+    state = request.GET.get("state", "").strip()
+    district = request.GET.get("district", "").strip()
+    taluk = request.GET.get("taluk", "").strip()
+
+    try:
+        region = RegionInfo.objects.get(state=state, district=district, taluk=taluk)
+        schools = School.objects.filter(region=region)
+        school_data = [{
+            'name': school.name,
+            'address': school.address,
+            'latitude': school.latitude,
+            'longitude': school.longitude
+        } for school in schools]
+
+        return JsonResponse({"schools": school_data})
+    except RegionInfo.DoesNotExist:
+        return JsonResponse({"error": "Region not found"})
+
+
+# Get hospitals for a specific region (state, district, taluk)
+@require_GET
+def get_hospitals(request):
+    state = request.GET.get("state", "").strip()
+    district = request.GET.get("district", "").strip()
+    taluk = request.GET.get("taluk", "").strip()
+
+    try:
+        region = RegionInfo.objects.get(state=state, district=district, taluk=taluk)
+        hospitals = Hospital.objects.filter(region=region)
+        hospital_data = [{
+            'name': hospital.name,
+            'address': hospital.address,
+            'latitude': hospital.latitude,
+            'longitude': hospital.longitude
+        } for hospital in hospitals]
+
+        return JsonResponse({"hospitals": hospital_data})
+    except RegionInfo.DoesNotExist:
+        return JsonResponse({"error": "Region not found"})

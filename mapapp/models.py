@@ -1,12 +1,6 @@
 from django.db import models
 
-class StateColor(models.Model):
-    state_name = models.CharField(max_length=100, unique=True)  # e.g., 'Maharashtra'
-    color_code = models.CharField(max_length=7)  # e.g., #FF0000
-
-    def __str__(self):
-        return f"{self.state_name}: {self.color_code}"
-
+# RegionInfo model for storing state, district, taluk, and region-related information
 class RegionInfo(models.Model):
     state = models.CharField(max_length=100)
     district = models.CharField(max_length=100)
@@ -19,4 +13,27 @@ class RegionInfo(models.Model):
 
     def __str__(self):
         return f"{self.state}, {self.district}, {self.taluk}"
-    
+
+
+# Hospital model to store information about hospitals in each taluk
+class Hospital(models.Model):
+    name = models.CharField(max_length=255)
+    address = models.TextField()
+    latitude = models.FloatField()
+    longitude = models.FloatField()
+    region = models.ForeignKey(RegionInfo, related_name='hospitals_in_region', on_delete=models.CASCADE)  # ForeignKey to RegionInfo
+
+    def __str__(self):
+        return f"{self.name} - {self.region.taluk}"  # Access taluk via the related RegionInfo model
+
+
+# School model to store information about schools in each taluk
+class School(models.Model):
+    name = models.CharField(max_length=255)
+    address = models.TextField()
+    latitude = models.FloatField()
+    longitude = models.FloatField()
+    region = models.ForeignKey(RegionInfo, related_name='schools_in_region', on_delete=models.CASCADE)  # ForeignKey to RegionInfo
+
+    def __str__(self):
+        return f"{self.name} - {self.region.taluk}"  # Access taluk via the related RegionInfo model

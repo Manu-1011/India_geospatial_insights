@@ -42,12 +42,12 @@
     }
 
     .info-panel {
-      width: 300px;
+      width: 500px;
       background: #f5f5f5;
       color: #000;
       padding: 20px;
       position: absolute;
-      right: -320px;
+      right: -500px;
       top: 0;
       height: 100%;
       transition: right 0.3s ease-in-out;
@@ -87,8 +87,25 @@
 
     .chart-container {
       margin-top: 20px;
+      min-height: 250px;
+    }
+    .reset-btn, .export-btn {
+      background-color: #2196F3;
+      color: white;
+      border: none;
+      padding: 10px 15px;
+      cursor: pointer;
+      margin-top: 10px;
+      width: 100%;
+      text-align: center;
+      font-size: 16px;
+    }
+
+    .reset-btn:hover, .export-btn:hover {
+      background-color: #1976D2;
     }
   </style>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-EVSTQN3/azprG1Anm3QDgpJLIm9Nao0Yz1ztcQTwFspd3yD65VohhpuuCOmLASjC" crossorigin="anonymous">
 </head>
 <body>
 
@@ -126,6 +143,8 @@
         <option value="terrain">Terrain</option>
       </select>
     </div>
+    <button class="reset-btn" id="resetFiltersBtn">Reset Filters</button>
+    <button class="export-btn" id="exportMapBtn">Export Map</button>
   </div>
 
   <!-- Center: Map -->
@@ -167,7 +186,8 @@
 <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/chroma-js/2.1.0/chroma.min.js"></script>
-
+<script src="https://unpkg.com/leaflet-image/leaflet-image.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/0.4.1/html2canvas.min.js"></script>
 <script>
   const map = L.map('map').setView([22.9734, 78.6569], 5);
 
@@ -309,8 +329,42 @@
     talukLayer = L.geoJSON(feats, {
       style: { color: '#64B5F6', weight: 2, fillOpacity: 0.4 }
     }).addTo(map);
-    map.fitBounds(talukLayer.getBounds());
+    
+    // Fetch and place school markers (Red)
+    fetch(`/api/schools/?state=${encodeURIComponent(st)}&district=${encodeURIComponent(dt)}&taluk=${encodeURIComponent(tl)}`)
+      .then(r => r.json())
+      .then(schoolData => {
+        console.log('Received schools manoj data:', schoolData);
+        schoolData.schools.forEach(school => {
+          const { name, address, latitude, longitude } = school;
+          console.log(name, address, latitude, longitude);
+          // Create a red marker for each school
+          const marker = L.marker([latitude, longitude])
+            .addTo(map)
+            .bindPopup(`
+              <strong>${name}</strong><br>
+              <em>${address}</em>
+            `);
+        });
+      });
+    // Fetch and place hospital markers (Blue)
+    fetch(`/api/hospitals/?state=${encodeURIComponent(st)}&district=${encodeURIComponent(dt)}&taluk=${encodeURIComponent(tl)}`)
+      .then(r => r.json())
+      .then(hospitalData => {
+        hospitalData.hospitals.forEach(hospital => {
+          const { name, address, latitude, longitude } = hospital;
+          console.log(name, address, latitude, longitude);
+          // Create a blue marker for each hospital
+          const marker = L.marker([latitude, longitude])
+            .addTo(map)
+            .bindPopup(`
+              <strong>${name}</strong><br>
+              <em>${address}</em>
+            `);
+        });
+      });
 
+    // Optionally, fetch and display information panel as before
     fetch(`/api/info/?state=${encodeURIComponent(st)}&district=${encodeURIComponent(dt)}&taluk=${encodeURIComponent(tl)}`)
       .then(r => r.json())
       .then(d => {
@@ -448,6 +502,63 @@
       chartInstances.push(chartInstance);
     });
   }
+  // Reset button functionality
+  document.getElementById('resetFiltersBtn').addEventListener('click', () => {
+  // Reset dropdowns
+  stateSelector.value = '';
+  districtSelector.innerHTML = '<option value="">-- Select District --</option>';
+  districtSelector.disabled = true;
+  talukSelector.innerHTML = '<option value="">-- Select Taluk --</option>';
+  talukSelector.disabled = true;
+
+  // Reset selectors
+  colorMetricSel.selectedIndex = 0;
+  gradientSelector.selectedIndex = 0;
+
+  // Reset legend, charts, info panel
+  legendDiv.innerHTML = '';
+  chartsDiv.innerHTML = '';
+  infoContent.innerHTML = 'Select a taluk for detailed info.';
+  infoPanel.classList.remove('active');
+
+  // Remove map layers if any
+  [stateLayer, districtLayer, talukLayer].forEach(layer => {
+    if (layer) map.removeLayer(layer);
+  });
+  stateLayer = districtLayer = talukLayer = null;
+
+  // Remove all markers (schools, hospitals, etc.)
+  map.eachLayer(layer => {
+    if (layer instanceof L.Marker) {
+      map.removeLayer(layer);
+    }
+  });
+
+  // Optionally reset map view
+  map.setView([22.9734, 78.6569], 5);
+});
+
+  // Export map functionality
+  // Export Map functionality using leaflet-image
+  // Export Map functionality using GeoJSON
+  document.getElementById('exportMapBtn').addEventListener('click', () => {
+    // Capture the map state using leaflet-image
+    leafletImage(map, function(err, canvas) {
+      if (err) {
+        console.error('Export failed:', err);
+        return;
+      }
+
+      // Convert canvas to image and trigger download
+      const img = canvas.toDataURL('image/png');
+      const link = document.createElement('a');
+      link.href = img;
+      link.download = 'map-export.png'; // Filename for the exported map
+      link.click(); // Trigger the download
+    });
+  });
+
+
 </script>
 </body>
 </html>

@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Leaflet Heatmap Example</title>
+
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+    
+    <style>
+        #map {
+            height: 100%;
+            width: 100%;
+            min-height: 600px; /* Set a minimum height */
+        }
+    </style>
+</head>
+<body>
+    <div id="map"></div>
+
+    <!-- Leaflet JS -->
+    <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+
+    <!-- Leaflet Heatmap Plugin -->
+    <script src="https://unpkg.com/leaflet.heat/dist/leaflet-heat.js"></script>
+
+    <script>
+        // Initialize the map with a more zoomed-out view
+        var map = L.map('map').setView([12.9716, 77.5946], 10);  // Zoom level 10 (zoomed out)
+
+        // Add OpenStreetMap tile layer
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+        }).addTo(map);
+
+        // Heatmap data: [latitude, longitude, intensity]
+        // Generate random coordinates within the bounds of Karnataka
+function generateRandomKarnatakaData(numPoints) {
+    const latMin = 11.5, latMax = 18.5;  // Latitude bounds for Karnataka
+    const lonMin = 74.0, lonMax = 78.5;  // Longitude bounds for Karnataka
+    const heatData = [];
+
+    for (let i = 0; i < numPoints; i++) {
+        const lat = (Math.random() * (latMax - latMin) + latMin).toFixed(4);  // Random latitude
+        const lon = (Math.random() * (lonMax - lonMin) + lonMin).toFixed(4);  // Random longitude
+        const intensity = (Math.random() * 0.7 + 0.3).toFixed(2);  // Random intensity between 0.3 and 1.0
+
+        heatData.push([parseFloat(lat), parseFloat(lon), parseFloat(intensity)]);
+    }
+    return heatData;
+}
+
+// Generate 5000 random data points for Karnataka
+var karnatakaHeatData = generateRandomKarnatakaData(5000);
+
+// Add the heatmap layer to the map
+var heatLayer = L.heatLayer(karnatakaHeatData, {
+    radius: 25,  // Radius of each heat point
+    blur: 1,     // Blur effect
+    maxZoom: 17,  // Max zoom level
+    gradient: {
+        0.0: 'blue',    // Start with blue at the lowest intensity
+        0.2: 'cyan',    // Transition to cyan
+        0.4: 'yellow',  // Then to yellow
+        0.6: 'orange',  // Then orange
+        0.8: 'red',     // Then red
+        1.0: 'darkred'  // Dark red for the highest intensity
+    }
+}).addTo(map);
+
+        // Debugging to confirm heatmap is added
+        heatLayer.on('add', function () {
+            console.log('Heatmap layer added to the map.');
+        });
+
+        // Debugging to confirm map bounds
+        map.on('load', function () {
+            console.log('Map has finished loading.');
+            console.log('Current zoom level:', map.getZoom());
+            console.log('Map bounds:', map.getBounds());
+        });
+    </script>
+</body>
+</html>
